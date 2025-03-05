@@ -1,156 +1,58 @@
-# **2. Service Quản Lý Môn Học (Course Service)**  
+# **Service quản lý môn học (course service)**  
 
-Dịch vụ này sẽ quản lý thông tin về môn học với các tính năng chính:  
+Dịch vụ này sẽ quản lý thông tin môn học với các tính năng chính:  
 - **Tạo môn học mới**  
 - **Lấy danh sách môn học**  
 - **Lấy thông tin một môn học cụ thể**  
 - **Cập nhật thông tin môn học**  
 - **Xóa môn học**  
 
+## **Công nghệ sử dụng**
+- **Flask**: Xây dựng API RESTful  
+- **mysql-connector-python**: Để làm việc với database  
+- **MySQL hoặc PostgreSQL**: Lưu trữ dữ liệu  
+- **Docker**: Đóng gói service  
+
+## **Cấu trúc thư mục**
+```
+course_service/
+│── app.py                  # Main Flask App
+│── config.py               # Cấu hình MySQL
+│── database.py             # Kết nối MySQL
+│── models.py               # Định nghĩa bảng course
+│── routes.py               # Xử lý API endpoints
+│── requirements.txt        # Thư viện cần thiết
+│── .gitignore              # Lọc các file môi trường
+│── Dockerfile              # (Nếu deploy bằng Docker)
+└── .env                    # Config biến môi trường
+```
 ---
 
-## **1. Cài đặt môi trường**
-Tải thư mục dự án `course-service` và vào bên trong:
+## **1. Cài đặt môi trường**  
+Trước tiên, hãy tải về thư mục dự án:  
 ```sh
-git clone https://github.com/Tiendepchai/course-service.git && cd course-service
+git clone https://github.com/Tiendepchai/course-service.git
 ```
-Tạo môi trường ảo và cài đặt Flask:
+Tạo một môi trường ảo và cài đặt Flask:  
 ```sh
-pip install -r requirements
+pip install -r requirements.txt
 ```
 
 ---
 
-## **2. Xây dựng API**
-### **File: `app.py`**
-Chứa API Flask và khởi tạo database.
-```python
-from flask import Flask
-from flask_sqlalchemy import SQLAlchemy
-from flask_restful import Api
-from flask_migrate import Migrate
-
-app = Flask(__name__)
-
-# Cấu hình database
-app.config['SQLALCHEMY_DATABASE_URI'] = 'mysql+pymysql://user:password@localhost/course_db'
-app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
-
-db = SQLAlchemy(app)
-migrate = Migrate(app, db)
-api = Api(app)
-
-from resources.course import CourseResource, CourseListResource
-api.add_resource(CourseListResource, '/courses')
-api.add_resource(CourseResource, '/courses/<int:id>')
-
-if __name__ == '__main__':
-    app.run(debug=True)
-```
-
----
-
-### **File: `models.py`**
-Chứa model **Course**.
-```python
-from app import db
-
-class Course(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    name = db.Column(db.String(100), nullable=False)
-    code = db.Column(db.String(10), unique=True, nullable=False)
-    credit = db.Column(db.Integer, nullable=False)
-
-    def __repr__(self):
-        return f'<Course {self.name}>'
-```
-
----
-
-### **File: `schemas.py`**
-Dùng **Marshmallow** để validate dữ liệu.
-```python
-from marshmallow import Schema, fields
-
-class CourseSchema(Schema):
-    id = fields.Int(dump_only=True)
-    name = fields.Str(required=True)
-    code = fields.Str(required=True)
-    credit = fields.Int(required=True)
-```
-
----
-
-### **File: `resources/course.py`**
-Chứa API xử lý CRUD môn học.
-```python
-from flask_restful import Resource
-from flask import request
-from models import Course, db
-from schemas import CourseSchema
-
-course_schema = CourseSchema()
-courses_schema = CourseSchema(many=True)
-
-class CourseListResource(Resource):
-    def get(self):
-        courses = Course.query.all()
-        return courses_schema.dump(courses), 200
-
-    def post(self):
-        data = request.get_json()
-        errors = course_schema.validate(data)
-        if errors:
-            return {"message": "Invalid data", "errors": errors}, 400
-        
-        course = Course(**data)
-        db.session.add(course)
-        db.session.commit()
-        return course_schema.dump(course), 201
-
-class CourseResource(Resource):
-    def get(self, id):
-        course = Course.query.get_or_404(id)
-        return course_schema.dump(course), 200
-
-    def put(self, id):
-        course = Course.query.get_or_404(id)
-        data = request.get_json()
-        errors = course_schema.validate(data)
-        if errors:
-            return {"message": "Invalid data", "errors": errors}, 400
-        
-        course.name = data['name']
-        course.code = data['code']
-        course.credit = data['credit']
-        db.session.commit()
-        return course_schema.dump(course), 200
-
-    def delete(self, id):
-        course = Course.query.get_or_404(id)
-        db.session.delete(course)
-        db.session.commit()
-        return {"message": "Course deleted"}, 204
-```
-
----
-
-## **3. Chạy Dịch Vụ**
+## **2. Chạy Dịch Vụ**
 ### **Bước 1: Tạo Database**
-Chạy MySQL hoặc PostgreSQL và tạo database:
+Chạy MySQL và tạo database:
+```sh
+sudo -u root
+```
 ```sql
+CREATE USER 'admin'@'localhost' IDENTIFIED BY 'password'; 
+GRANT ALL PRIVILEGES ON course_db.* TO 'admin'@'localhost';
 CREATE DATABASE course_db;
 ```
 
-### **Bước 2: Cấu hình Flask-Migrate**
-Khởi tạo và chạy migration:
-```sh
-flask db init
-flask db migrate -m "Create courses table"
-flask db upgrade
-```
-
-### **Bước 3: Chạy API**
+### **Bước 2: Chạy API**
 ```sh
 python app.py
 ```
@@ -158,79 +60,99 @@ API sẽ chạy tại `http://127.0.0.1:5000`.
 
 ---
 
-## **4. Kiểm thử API với cURL hoặc Postman**
-### **Tạo môn học**
+## **3. Kiểm thử API với cURL hoặc Postman**
+#### **Tạo môn học mới**
 ```sh
-curl -X POST "http://127.0.0.1:5000/courses" \
-     -H "Content-Type: application/json" \
-     -d '{"name": "Lập trình Python", "code": "PY101", "credit": 3}'
+curl -X POST http://127.0.0.1:5000/courses -H "Content-Type: application/json" -d '{\
+  "name": "Calculus 1",\
+  "description": "Mathematics"\
+}'
 ```
 
-### **Lấy danh sách môn học**
+#### **Lấy danh sách môn học**
 ```sh
-curl -X GET "http://127.0.0.1:5000/courses"
+curl http://127.0.0.1:5000/courses
 ```
 
-### **Lấy một môn học**
+#### **Lấy thông tin môn học theo ID**
 ```sh
-curl -X GET "http://127.0.0.1:5000/courses/1"
+curl http://127.0.0.1:5000/courses/1
 ```
 
-### **Cập nhật môn học**
+#### **Cập nhật môn học**
 ```sh
-curl -X PUT "http://127.0.0.1:5000/courses/1" \
-     -H "Content-Type: application/json" \
-     -d '{"name": "Lập trình Flask", "code": "FL101", "credit": 4}'
+curl -X PUT http://127.0.0.1:5000/courses -H "Content-Type: application/json" -d '{\
+  "name": "Probability and statistics",\
+  "description": "Mathematics"\
+}'
 ```
 
-### **Xóa môn học**
+#### **Xóa môn học**
 ```sh
-curl -X DELETE "http://127.0.0.1:5000/courses/1"
+curl -X DELETE http://127.0.0.1:5000/courses/1
 ```
 
 ---
 
-## **5. Đóng gói với Docker**
+## **4. Đóng gói với Docker**
 ### **File: `Dockerfile`**
 ```dockerfile
+# Sử dụng image chính thức của Python
 FROM python:3.10
 
+# Đặt thư mục làm thư mục làm việc
 WORKDIR /app
 
-COPY requirements.txt requirements.txt
-RUN pip install -r requirements.txt
-
+# Copy toàn bộ project vào container
 COPY . .
 
+# Cài đặt thư viện cần thiết
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Chạy ứng dụng Flask
 CMD ["python", "app.py"]
+
 ```
 
 ### **File: `docker-compose.yml`**
 ```yaml
 version: '3.10'
 services:
-  course_service:
-    build: .
-    ports:
-      - "5001:5000"
-    environment:
-      - SQLALCHEMY_DATABASE_URI=mysql+pymysql://user:password@db/course_db
-    depends_on:
-      - db
-
-  db:
-    image: mysql:5.7
+  mysql_db:
+    image: mysql
+    container_name: mysql_course_service
     restart: always
     environment:
       MYSQL_ROOT_PASSWORD: root
       MYSQL_DATABASE: course_db
-      MYSQL_USER: user
+      MYSQL_USER: admin
       MYSQL_PASSWORD: password
     ports:
       - "3307:3307"
+    volumes:
+      - mysql_data:/var/lib/mysql
+
+  course_service:
+    build: .
+    container_name: course_service
+    restart: always
+    depends_on:
+      - mysql_db
+    ports:
+      - "5050:5050"
+    environment:
+      DB_HOST: localhost
+      DB_USER: admin
+      DB_PASSWORD: password
+      DB_NAME: course_db
+
+volumes:
+  mysql_data:
+
 ```
 
 ### **Chạy Docker**
 ```sh
 docker-compose up --build
 ```
+---
